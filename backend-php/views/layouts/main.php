@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="/css/style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
     <header class="navbar">
@@ -17,8 +17,10 @@
                 <span class="brand-title">ResumeEngine</span>
             </a>
             <nav class="nav-links">
-                <a href="/" class="nav-link active">Inicio</a>
-                <a href="/api/health" class="nav-link" target="_blank">Health API</a>
+                <a href="/" class="nav-link">Inicio</a>
+                <a href="/cv/nuevo" class="nav-link nav-btn-primary">⚡ Crear CV ATS</a>
+                <a href="/cv/preview" class="nav-link">Vista Previa</a>
+                <a href="/api/health" class="nav-link text-muted" target="_blank">Health API</a>
             </nav>
         </div>
     </header>

@@ -9,6 +9,15 @@
         Arquitectura limpia desacoplada: Frontend y Núcleo Web en <strong>PHP Nativo (MVC POO)</strong> sincronizado vía API REST con un Microservicio de Generación en <strong>Python</strong>.
     </p>
 
+    <div style="margin-bottom: 3rem; display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap;">
+        <a href="/cv/nuevo" class="btn btn-primary" style="font-size: 1.05rem; padding: 0.85rem 2rem;">
+            <span>⚡</span> Crear Currículum ATS
+        </a>
+        <a href="/cv/preview" class="btn btn-secondary" style="font-size: 1.05rem; padding: 0.85rem 1.75rem;">
+            <span>👁️</span> Ver Plantilla Maestra
+        </a>
+    </div>
+
     <div class="cards-grid">
         <div class="card">
             <div class="card-icon">🏗️</div>
@@ -45,8 +54,10 @@
         <h3>Rutas Activas en el Router PHP:</h3>
         <ul>
             <li><code>GET /</code> &mdash; Dashboard Principal</li>
+            <li><code>GET /cv/nuevo</code> &mdash; Editor y Formulario Dinámico ATS</li>
+            <li><code>GET /cv/preview</code> &mdash; Vista Previa Formato Papel ATS (1 Columna)</li>
+            <li><code>POST /api/cv/save</code> &mdash; Validación y Serialización REST de Secciones</li>
             <li><code>GET /api/health</code> &mdash; Verificación de Salud del Servidor (JSON)</li>
-            <li><code>GET /cv/{id}</code> &mdash; Detalle y Carga del CV en Base de Datos</li>
         </ul>
     </div>
 </div>
