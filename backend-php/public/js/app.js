@@ -1,10 +1,14 @@
 /**
  * Generador de Currículums ATS - Lógica Frontend (Vanilla JS & Fetch API)
+ * Incluye módulo de Auditoría y Adaptación con IA (Modelo Google XYZ)
  */
+
+const PYTHON_API_URL = 'http://127.0.0.1:8001';
 
 document.addEventListener('DOMContentLoaded', () => {
     initFormInteractions();
     initPreviewRenderer();
+    initAiTailorModule();
 });
 
 // =====================================================================
@@ -26,15 +30,12 @@ function initFormInteractions() {
     const btnLoadSample = document.getElementById('btnLoadSample');
     const btnClearForm = document.getElementById('btnClearForm');
     const btnPreviewCv = document.getElementById('btnPreviewCv');
-    const statusMessage = document.getElementById('statusMessage');
 
-    // Botones para agregar items dinámicos
     if (btnAddCategory) btnAddCategory.addEventListener('click', () => addCategoryRow());
     if (btnAddExperience) btnAddExperience.addEventListener('click', () => addExperienceRow());
     if (btnAddProject) btnAddProject.addEventListener('click', () => addProjectRow());
     if (btnAddEducation) btnAddEducation.addEventListener('click', () => addEducationRow());
 
-    // Cargar perfil de prueba
     if (btnLoadSample) {
         btnLoadSample.addEventListener('click', () => {
             loadSampleProfile();
@@ -42,22 +43,20 @@ function initFormInteractions() {
         });
     }
 
-    // Limpiar formulario
     if (btnClearForm) {
         btnClearForm.addEventListener('click', () => {
             if (confirm('¿Estás seguro de que deseas limpiar todo el formulario?')) {
                 cvForm.reset();
-                categoriesContainer.innerHTML = '';
-                experiencesContainer.innerHTML = '';
-                projectsContainer.innerHTML = '';
-                educationContainer.innerHTML = '';
+                if (categoriesContainer) categoriesContainer.innerHTML = '';
+                if (experiencesContainer) experiencesContainer.innerHTML = '';
+                if (projectsContainer) projectsContainer.innerHTML = '';
+                if (educationContainer) educationContainer.innerHTML = '';
                 localStorage.removeItem('ats_cv_draft');
                 updateStatus('Formulario reiniciado.');
             }
         });
     }
 
-    // Botón Previsualizar ATS
     if (btnPreviewCv) {
         btnPreviewCv.addEventListener('click', () => {
             const data = serializeFormData();
@@ -66,18 +65,16 @@ function initFormInteractions() {
         });
     }
 
-    // Envío del formulario vía Fetch API
     cvForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const payload = serializeFormData();
 
-        // Validación básica
         if (!payload.header.full_name || !payload.header.email || !payload.header.summary) {
             alert('Por favor completa los campos requeridos en el Encabezado y Resumen.');
             return;
         }
 
-        updateStatus('⏳ Validando y enviando datos al servidor...');
+        updateStatus('⏳ Validando y enviando datos...');
 
         try {
             const response = await fetch('/api/cv/save', {
@@ -99,7 +96,7 @@ function initFormInteractions() {
                 }, 800);
             } else {
                 updateStatus('❌ Error: ' + (result.message || 'No se pudo procesar'));
-                alert('Error: ' + (result.message || 'Verifica los campos ingresados'));
+                alert('Error: ' + (result.message || 'Verifica los campos'));
             }
         } catch (err) {
             console.error('Error al guardar CV:', err);
@@ -107,7 +104,6 @@ function initFormInteractions() {
         }
     });
 
-    // Cargar borrador previo si existe en localStorage o inicializar con 1 bloque por sección
     const savedDraft = localStorage.getItem('ats_cv_draft');
     if (savedDraft) {
         try {
@@ -134,10 +130,204 @@ function initDefaultEmptyRows() {
 }
 
 // =====================================================================
-// 2. GENERACIÓN DINÁMICA DE ELEMENTOS DEL FORMULARIO
+// 2. MÓDULO IA: ADAPTACIÓN A OFERTA DE EMPLEO
+// =====================================================================
+window.lastTailoredCv = null;
+
+function initAiTailorModule() {
+    const btnTailorCv = document.getElementById('btnTailorCv');
+    const btnTailorAndDownload = document.getElementById('btnTailorAndDownload');
+    const btnApplyAiChanges = document.getElementById('btnApplyAiChanges');
+    const btnDownloadAiDocx = document.getElementById('btnDownloadAiDocx');
+    const jobDescriptionInput = document.getElementById('jobDescriptionInput');
+    const aiStatusText = document.getElementById('aiStatusText');
+    const aiResultsBox = document.getElementById('aiResultsBox');
+
+    if (!btnTailorCv) return;
+
+    // 2.1 Auditar y Adaptar CV con IA
+    btnTailorCv.addEventListener('click', async () => {
+        const jobDesc = jobDescriptionInput ? jobDescriptionInput.value.trim() : '';
+        if (!jobDesc) {
+            alert('Por favor pega la descripción o aviso de la vacante para realizar la auditoría.');
+            if (jobDescriptionInput) jobDescriptionInput.focus();
+            return;
+        }
+
+        const cvData = serializeFormData();
+        if (!cvData.header.full_name) {
+            alert('Por favor ingresa al menos tu nombre en el formulario antes de adaptar con IA.');
+            return;
+        }
+
+        btnTailorCv.disabled = true;
+        btnTailorCv.innerHTML = '<span>⏳</span> Auditando con IA...';
+        if (aiStatusText) aiStatusText.innerText = 'Consultando motor de IA y calculando Match ATS...';
+
+        try {
+            const res = await fetch(`${PYTHON_API_URL}/api/tailor-cv`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cv_data: cvData,
+                    job_description: jobDesc
+                })
+            });
+
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.detail || 'Fallo en el microservicio Python');
+            }
+
+            const result = await res.json();
+            window.lastTailoredCv = result.tailored_cv;
+
+            // Mostrar resultados en la UI
+            if (aiResultsBox) aiResultsBox.style.display = 'block';
+
+            const initScoreEl = document.getElementById('initialScoreVal');
+            const optScoreEl = document.getElementById('optimizedScoreVal');
+            if (initScoreEl) initScoreEl.innerText = `${result.audit_report.initial_match_score}%`;
+            if (optScoreEl) optScoreEl.innerText = `${result.audit_report.optimized_match_score}%`;
+
+            // Palabras clave
+            const cloud = document.getElementById('extractedKeywordsCloud');
+            if (cloud) {
+                cloud.innerHTML = '';
+                result.audit_report.extracted_job_keywords.forEach(kw => {
+                    const tag = document.createElement('span');
+                    tag.className = 'tag-badge';
+                    tag.innerText = kw;
+                    cloud.appendChild(tag);
+                });
+            }
+
+            // Notas de auditoría
+            const notesList = document.getElementById('auditNotesList');
+            if (notesList) {
+                notesList.innerHTML = '';
+                result.audit_report.audit_notes.forEach(note => {
+                    const li = document.createElement('li');
+                    li.innerText = note;
+                    notesList.appendChild(li);
+                });
+            }
+
+            if (aiStatusText) aiStatusText.innerText = '✅ Auditoría y optimización completada con éxito.';
+            btnTailorCv.disabled = false;
+            btnTailorCv.innerHTML = '<span>✨</span> Re-auditar con IA';
+
+            // Scroll suave hacia los resultados
+            aiResultsBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+        } catch (err) {
+            console.error('Error al adaptar CV:', err);
+            alert(`No se pudo conectar con el microservicio de Python en ${PYTHON_API_URL}.\n\nAsegúrate de tener corriendo el microservicio (ej. en start.sh). Detalle: ${err.message}`);
+            if (aiStatusText) aiStatusText.innerText = '❌ Error de comunicación con microservicio.';
+            btnTailorCv.disabled = false;
+            btnTailorCv.innerHTML = '<span>✨</span> Auditar y Adaptar CV con IA';
+        }
+    });
+
+    // 2.2 Aplicar cambios al formulario
+    if (btnApplyAiChanges) {
+        btnApplyAiChanges.addEventListener('click', () => {
+            if (!window.lastTailoredCv) return;
+            populateFormFromData(window.lastTailoredCv);
+            localStorage.setItem('ats_cv_draft', JSON.stringify(window.lastTailoredCv));
+            alert('🎉 ¡Los cambios adaptados por la IA se han aplicado a tu formulario!');
+        });
+    }
+
+    // 2.3 Descargar DOCX Optimizado desde el panel de IA
+    if (btnDownloadAiDocx) {
+        btnDownloadAiDocx.addEventListener('click', async () => {
+            if (!window.lastTailoredCv) return;
+            downloadDocxFromCvData(window.lastTailoredCv, btnDownloadAiDocx);
+        });
+    }
+
+    // 2.4 Adaptar y Descargar directo
+    if (btnTailorAndDownload) {
+        btnTailorAndDownload.addEventListener('click', async () => {
+            const jobDesc = jobDescriptionInput ? jobDescriptionInput.value.trim() : '';
+            if (!jobDesc) {
+                alert('Pega el aviso de trabajo para adaptar y descargar.');
+                if (jobDescriptionInput) jobDescriptionInput.focus();
+                return;
+            }
+
+            const cvData = serializeFormData();
+            btnTailorAndDownload.disabled = true;
+            btnTailorAndDownload.innerHTML = '<span>⏳</span> Generando Word con IA...';
+
+            try {
+                const response = await fetch(`${PYTHON_API_URL}/api/tailor-and-generate-docx`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        cv_data: cvData,
+                        job_description: jobDesc
+                    })
+                });
+
+                if (!response.ok) throw new Error('Error al generar archivo');
+
+                const blob = await response.blob();
+                triggerFileDownload(blob, `CV_${cvData.header.full_name.replace(/\s+/g, '_')}_Tailored_ATS.docx`);
+            } catch (err) {
+                alert('Error al descargar archivo DOCX: ' + err.message);
+            } finally {
+                btnTailorAndDownload.disabled = false;
+                btnTailorAndDownload.innerHTML = '<span>⚡</span> Adaptar y Descargar Word Directo';
+            }
+        });
+    }
+}
+
+async function downloadDocxFromCvData(cvData, btnElement = null) {
+    if (btnElement) {
+        btnElement.disabled = true;
+        btnElement.innerHTML = '<span>⏳</span> Descargando Word...';
+    }
+
+    try {
+        const response = await fetch(`${PYTHON_API_URL}/api/generate-docx`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cvData)
+        });
+
+        if (!response.ok) throw new Error('Error al generar DOCX en el microservicio');
+
+        const blob = await response.blob();
+        const candidateName = (cvData.header && cvData.header.full_name) ? cvData.header.full_name.replace(/\s+/g, '_') : 'Candidato';
+        triggerFileDownload(blob, `CV_${candidateName}_ATS.docx`);
+    } catch (err) {
+        alert('Error: ' + err.message);
+    } finally {
+        if (btnElement) {
+            btnElement.disabled = false;
+            btnElement.innerHTML = '<span>📄</span> Descargar DOCX Optimizado (.docx)';
+        }
+    }
+}
+
+function triggerFileDownload(blob, filename) {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    a.remove();
+}
+
+// =====================================================================
+// 3. GENERACIÓN DINÁMICA DE ELEMENTOS DEL FORMULARIO
 // =====================================================================
 
-// --- 2.1 Categorías de Competencias Técnicas ---
 function addCategoryRow(categoryName = '', skills = '') {
     const container = document.getElementById('categoriesContainer');
     if (!container) return;
@@ -166,7 +356,6 @@ function addCategoryRow(categoryName = '', skills = '') {
     container.appendChild(card);
 }
 
-// --- 2.2 Experiencia Profesional y Viñetas de Logros ---
 function addExperienceRow(data = {}) {
     const container = document.getElementById('experiencesContainer');
     if (!container) return;
@@ -181,7 +370,6 @@ function addExperienceRow(data = {}) {
     const location = data.location || '';
     const startDate = data.start_date || '';
     const endDate = data.end_date || '';
-    const isCurrent = data.is_current ? 'checked' : '';
 
     card.innerHTML = `
         <div class="dynamic-item-header">
@@ -215,27 +403,24 @@ function addExperienceRow(data = {}) {
 
         <div class="bullets-box">
             <div class="flex-between align-center" style="margin-bottom: 0.75rem;">
-                <label style="font-weight: 600; color: var(--accent);">Logros Cuantificables (Viñetas ATS) <span class="required">*</span></label>
+                <label style="font-weight: 600; color: var(--accent);">Logros Cuantificables (Modelo Google XYZ) <span class="required">*</span></label>
                 <button type="button" class="btn btn-sm btn-outline" onclick="addBulletRow('${expId}')">➕ Agregar Viñeta</button>
             </div>
             <p class="field-hint" style="margin-bottom: 0.75rem;">
-                📌 Regla ATS: Utiliza viñetas con métricas. Fórmula: [Verbo de Acción] + [Proyecto/Contexto] + [Métrica de Impacto (%, $, tiempo)].
+                📌 Fórmula Google XYZ: Inicia con Verbo Fuerte + Logré [X], medido por [Y], haciendo [Z] (métricas obligatorias: %, $, tiempo).
             </p>
-            <div class="bullets-container" id="bullets_${expId}">
-                <!-- Viñetas dinámicas -->
-            </div>
+            <div class="bullets-container" id="bullets_${expId}"></div>
         </div>
     `;
 
     container.appendChild(card);
 
-    // Agregar viñetas si vienen en los datos, o 2 viñetas iniciales por defecto
     const bulletsContainer = document.getElementById(`bullets_${expId}`);
     if (data.bullets && data.bullets.length > 0) {
         data.bullets.forEach(b => addBulletRow(expId, b));
     } else {
-        addBulletRow(expId, 'Lideré la implementación de una arquitectura en microservicios reduciendo el tiempo de respuesta en un 35%.');
-        addBulletRow(expId, 'Automaticé procesos ETL procesando más de 50,000 registros diarios con 99.9% de disponibilidad.');
+        addBulletRow(expId, 'Optimicé la arquitectura del backend reduciendo la latencia de respuesta en un 38% mediante la migración a microservicios.');
+        addBulletRow(expId, 'Diseñé e implementé un pipeline automatizado de procesamiento documental incrementando el throughput en un 65%.');
     }
 }
 
@@ -250,13 +435,12 @@ function addBulletRow(expId, text = '') {
 
     row.innerHTML = `
         <span class="bullet-symbol">&bull;</span>
-        <input type="text" class="bullet-text-input" placeholder="Ej: Rediseñé la base de datos MySQL optimizando consultas lentas en un 40%..." value="${escapeHtml(text)}" required>
+        <input type="text" class="bullet-text-input" placeholder="Ej: Automaticé procesos ETL reduciendo el tiempo de ejecución en un 40%..." value="${escapeHtml(text)}" required>
         <button type="button" class="btn btn-sm btn-danger" onclick="removeItem('${bulletId}')">✕</button>
     `;
     bulletsContainer.appendChild(row);
 }
 
-// --- 2.3 Proyectos Destacados ---
 function addProjectRow(data = {}) {
     const container = document.getElementById('projectsContainer');
     if (!container) return;
@@ -293,7 +477,6 @@ function addProjectRow(data = {}) {
     container.appendChild(card);
 }
 
-// --- 2.4 Educación ---
 function addEducationRow(data = {}) {
     const container = document.getElementById('educationContainer');
     if (!container) return;
@@ -326,17 +509,15 @@ function addEducationRow(data = {}) {
     container.appendChild(card);
 }
 
-// Remover elemento por ID
 window.removeItem = function (elementId) {
     const el = document.getElementById(elementId);
     if (el) el.remove();
 };
 
 // =====================================================================
-// 3. SERIALIZACIÓN Y CARGA DE DATOS
+// 4. SERIALIZACIÓN Y CARGA DE DATOS
 // =====================================================================
 function serializeFormData() {
-    // Encabezado
     const header = {
         full_name: document.getElementById('full_name')?.value.trim() || '',
         professional_title: document.getElementById('professional_title')?.value.trim() || '',
@@ -345,12 +526,11 @@ function serializeFormData() {
         phone: document.getElementById('phone')?.value.trim() || '',
         email: document.getElementById('email')?.value.trim() || '',
         linkedin_url: document.getElementById('linkedin_url')?.value.trim() || '',
-        github_url: document.getElementById('github_url')?.value.trim() || '', // OPCIONAL
+        github_url: document.getElementById('github_url')?.value.trim() || '',
         portfolio_url: document.getElementById('portfolio_url')?.value.trim() || '',
         summary: document.getElementById('summary')?.value.trim() || ''
     };
 
-    // Competencias Técnicas
     const skill_categories = [];
     document.querySelectorAll('#categoriesContainer .dynamic-item-card').forEach((card, idx) => {
         const name = card.querySelector('.cat-name-input')?.value.trim() || '';
@@ -360,7 +540,6 @@ function serializeFormData() {
         }
     });
 
-    // Experiencia Profesional
     const experiences = [];
     document.querySelectorAll('#experiencesContainer .dynamic-item-card').forEach((card, idx) => {
         const job_title = card.querySelector('.exp-role-input')?.value.trim() || '';
@@ -388,7 +567,6 @@ function serializeFormData() {
         }
     });
 
-    // Proyectos
     const projects = [];
     document.querySelectorAll('#projectsContainer .dynamic-item-card').forEach((card, idx) => {
         const name = card.querySelector('.proj-name-input')?.value.trim() || '';
@@ -401,7 +579,6 @@ function serializeFormData() {
         }
     });
 
-    // Educación
     const education = [];
     document.querySelectorAll('#educationContainer .dynamic-item-card').forEach((card, idx) => {
         const degree = card.querySelector('.edu-degree-input')?.value.trim() || '';
@@ -427,7 +604,7 @@ function populateFormFromData(data) {
         setVal('phone', data.header.phone);
         setVal('email', data.header.email);
         setVal('linkedin_url', data.header.linkedin_url);
-        setVal('github_url', data.header.github_url); // OPCIONAL
+        setVal('github_url', data.header.github_url);
         setVal('portfolio_url', data.header.portfolio_url);
         setVal('summary', data.header.summary);
     }
@@ -462,7 +639,6 @@ function setVal(id, val) {
     if (el && val !== undefined && val !== null) el.value = val;
 }
 
-// Cargar perfil completo de prueba para demostración instantánea
 function loadSampleProfile() {
     const sample = {
         header: {
@@ -473,7 +649,7 @@ function loadSampleProfile() {
             phone: '+56 9 1234 5678',
             email: 'alejandro.silva@example.com',
             linkedin_url: 'https://linkedin.com/in/alejandrosilva',
-            github_url: 'https://github.com/alejandrosilva', // Opcional
+            github_url: 'https://github.com/alejandrosilva',
             portfolio_url: 'https://alejandrosilva.dev',
             summary: 'Ingeniero de Software con más de 7 años de experiencia diseñando arquitecturas escalables y APIs RESTful de alto rendimiento en PHP y Python. Especializado en optimización de bases de datos relacionales, microservicios y despliegues con Docker. Enfocado en código limpio, patrones de diseño y metodologías ágiles.'
         },
@@ -541,43 +717,30 @@ function loadSampleProfile() {
 }
 
 // =====================================================================
-// 4. RENDERIZADOR DE LA VISTA PREVIA ATS
+// 5. RENDERIZADOR DE LA VISTA PREVIA ATS
 // =====================================================================
 function initPreviewRenderer() {
     const paper = document.getElementById('atsDocumentPaper');
     if (!paper) return;
 
-    // Obtener borrador guardado en localStorage
     const savedDraft = localStorage.getItem('ats_cv_draft');
-    if (!savedDraft) return;
-
-    try {
-        const data = JSON.parse(savedDraft);
-        renderPreviewFromData(data);
-    } catch (e) {
-        console.error('Error al renderizar vista previa:', e);
+    if (savedDraft) {
+        try {
+            renderPreviewFromData(JSON.parse(savedDraft));
+        } catch (e) {
+            console.error('Error al renderizar vista previa:', e);
+        }
     }
 
-    // Botón de generación DOCX
     const btnGenerateDocx = document.getElementById('btnGenerateDocx');
     if (btnGenerateDocx) {
         btnGenerateDocx.addEventListener('click', async () => {
-            btnGenerateDocx.disabled = true;
-            btnGenerateDocx.innerHTML = '<span>⏳</span> Conectando con Microservicio Python...';
-
-            try {
-                const draft = JSON.parse(localStorage.getItem('ats_cv_draft') || '{}');
-                // Simulación o llamada al endpoint de generación
-                setTimeout(() => {
-                    alert('🎉 La estructura ATS ha sido enviada al microservicio de Python. En el siguiente paso activaremos el endpoint de FastAPI con python-docx para la descarga directa del archivo .docx.');
-                    btnGenerateDocx.disabled = false;
-                    btnGenerateDocx.innerHTML = '<span>📄</span> Generar DOCX (Word ATS)';
-                }, 1000);
-            } catch (err) {
-                alert('Error al generar: ' + err.message);
-                btnGenerateDocx.disabled = false;
-                btnGenerateDocx.innerHTML = '<span>📄</span> Generar DOCX (Word ATS)';
+            const draft = JSON.parse(localStorage.getItem('ats_cv_draft') || '{}');
+            if (!draft.header || !draft.header.full_name) {
+                alert('No hay datos suficientes para generar el documento. Por favor regresa al editor.');
+                return;
             }
+            downloadDocxFromCvData(draft, btnGenerateDocx);
         });
     }
 }
@@ -585,7 +748,6 @@ function initPreviewRenderer() {
 function renderPreviewFromData(data) {
     if (!data) return;
 
-    // 1. Encabezado
     if (data.header) {
         setText('prevFullName', data.header.full_name || 'Nombre del Candidato');
         setText('prevProfessionalTitle', data.header.professional_title || '');
@@ -599,7 +761,6 @@ function renderPreviewFromData(data) {
         const contactLine = document.getElementById('prevContactLine');
         if (contactLine) contactLine.innerHTML = contactParts.join(' &bull; ');
 
-        // Enlaces (LinkedIn, GitHub [opcional], Portfolio [opcional])
         const linkParts = [];
         if (data.header.linkedin_url) {
             linkParts.push(`<a href="${escapeHtml(data.header.linkedin_url)}" target="_blank">LinkedIn</a>`);
@@ -619,7 +780,6 @@ function renderPreviewFromData(data) {
         setText('prevSummary', data.header.summary || '');
     }
 
-    // 2. Competencias Técnicas
     const skillsContainer = document.getElementById('prevSkillsContainer');
     if (skillsContainer && data.skill_categories) {
         skillsContainer.innerHTML = '';
@@ -630,7 +790,6 @@ function renderPreviewFromData(data) {
         });
     }
 
-    // 3. Experiencia Profesional
     const expContainer = document.getElementById('prevExperienceContainer');
     if (expContainer && data.experiences) {
         expContainer.innerHTML = '';
@@ -660,7 +819,6 @@ function renderPreviewFromData(data) {
         });
     }
 
-    // 4. Proyectos Destacados
     const projContainer = document.getElementById('prevProjectsContainer');
     if (projContainer && data.projects) {
         projContainer.innerHTML = '';
@@ -684,7 +842,6 @@ function renderPreviewFromData(data) {
         });
     }
 
-    // 5. Educación
     const eduContainer = document.getElementById('prevEducationContainer');
     if (eduContainer && data.education) {
         eduContainer.innerHTML = '';
