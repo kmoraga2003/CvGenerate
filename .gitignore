@@ -1,0 +1,34 @@
+# PHP / Composer
+vendor/
+composer.lock
+.phpunit.result.cache
+
+# Python / Virtualenv
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.pytest_cache/
+
+# Documentos generados
+microservice-python/generated_docs/*.docx
+microservice-python/generated_docs/*.pdf
+!microservice-python/generated_docs/.gitkeep
+
+# Entornos y secretos
+.env
+.env.local
+
+# OS / IDEs
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
