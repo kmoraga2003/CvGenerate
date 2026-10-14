@@ -15,7 +15,14 @@ echo "=========================================================="
 echo "   🚀 Iniciando Generador de Currículums ATS de Clase Mundial"
 echo "=========================================================="
 
-# 1. Verificar PHP
+# 1. Liberar puertos si quedaron procesos previos colgados
+OLD_PY=$(lsof -t -i :$PYTHON_PORT 2>/dev/null)
+if [ -n "$OLD_PY" ]; then kill -9 $OLD_PY 2>/dev/null || true; fi
+
+OLD_PHP=$(lsof -t -i :$PHP_PORT 2>/dev/null)
+if [ -n "$OLD_PHP" ]; then kill -9 $OLD_PHP 2>/dev/null || true; fi
+
+# 2. Verificar PHP
 if ! command -v php &> /dev/null; then
     echo "⚠️  PHP no fue encontrado en tu sistema."
     echo "   Instálalo con Homebrew: brew install php"
@@ -25,28 +32,33 @@ fi
 PHP_VER=$(php -r "echo PHP_VERSION;")
 echo "✅ PHP detectado: versión $PHP_VER"
 
-# 2. Iniciar Microservicio Python (FastAPI + python-docx + IA)
-echo "🐍 Iniciando Microservicio Python en http://$HOST:$PYTHON_PORT ..."
-if [ -d "$VENV_DIR" ]; then
+# 3. Iniciar Microservicio Python (FastAPI + python-docx + IA)
+echo "🐍 Levantando Microservicio Python en http://$HOST:$PYTHON_PORT ..."
+if [ -f "$VENV_DIR/bin/python" ]; then
     PYTHON_CMD="$VENV_DIR/bin/python"
 else
     PYTHON_CMD="python3"
 fi
 
-# Arrancar uvicorn en segundo plano
-PYTHONPATH="$DIR/microservice-python" $PYTHON_CMD -m uvicorn app.main:app --host "$HOST" --port "$PYTHON_PORT" --app-dir "$DIR/microservice-python" &
+# Arrancar uvicorn entrecomillando el comando para soportar espacios en la ruta
+PYTHONPATH="$DIR/microservice-python" "$PYTHON_CMD" -m uvicorn app.main:app --host "$HOST" --port "$PYTHON_PORT" --app-dir "$DIR/microservice-python" &
 PYTHON_PID=$!
 
-# Capturar salida para detener ambos procesos con Ctrl+C
+# Asegurar cierre de ambos servidores con Ctrl+C
 cleanup() {
     echo ""
     echo "🛑 Deteniendo servidores..."
-    kill $PYTHON_PID 2>/dev/null
+    kill $PYTHON_PID 2>/dev/null || true
+    P1=$(lsof -t -i :$PYTHON_PORT 2>/dev/null)
+    if [ -n "$P1" ]; then kill -9 $P1 2>/dev/null || true; fi
+    P2=$(lsof -t -i :$PHP_PORT 2>/dev/null)
+    if [ -n "$P2" ]; then kill -9 $P2 2>/dev/null || true; fi
     exit 0
 }
-trap cleanup SIGINT SIGTERM
+trap cleanup SIGINT SIGTERM EXIT
 
-sleep 1
+# Esperar 2 segundos a que FastAPI inicialice
+sleep 2
 
 echo "✅ Microservicio Python (FastAPI & IA) activo (PID $PYTHON_PID)"
 echo "🌐 Servidor Frontend PHP activo en: http://$HOST:$PHP_PORT"
